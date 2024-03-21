@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { ModeToggle } from "../modeToggle";
+
 export function Component() {
   const [images, setImages] = useState<string[]>([]);
   const [formDetails, setFormDetails] = useState({
@@ -12,12 +13,15 @@ export function Component() {
     email: "",
     phoneNumber: "",
   });
-
-  const AccessToken =
-    "ya29.a0Ad52N3_eKkuo8uZ9RS4ZmAF5IYZLYzKrjIfZNG0uNIuBvo5dhMr2eaW1exsqCe4_hcHqABuIZYOKizIX_OJdbusQ5ZYu95FPRO0rH0HXDKQxrOnIEFhjRv0E8QIHHHU_EV2GbpB3wtRUIUkW7cwm7x4pa_bbWqIpknm0jmJI3FBuiHi7DbbsRfbipIriv6rs93aFbrdX4JTJUsty8BCLv6amDpf1_wbW4Y1B6ZoCtzeqZ79xD2laZzWtjB9dvEPnol5NTCM-iVlJdyxL5WCnXAsW3wBAVOeVeSu_wSb8nfUCAY5sQvt8xuhh_Lf2YUhFeOVMuajBTQ9gySyZYNcerm7woU8HpHI89oiJQCtOnnLxDIy_93ZgBamag1XvVKclof2veZHXesK2Xf5QD-7o_4G_szShEMUaCgYKAQoSARESFQHGX2Mi83NFi_hEcyrpwG768VNu8w0422";
-  const projectId = "9624344675";
-  const location = "us-central1";
-  const modelId = "4702032888881741824";
+  interface AnnotationPayload {
+    displayName: string;
+    classification?: {
+      score: number;
+    };
+  }
+  const AccessToken = import.meta.env.VITE_AccessToken;
+  const projectId = import.meta.env.VITE_projectId;
+  const modelId = import.meta.env.VITE_modelId;
 
   function handleInputChange(event: React.ChangeEvent<HTMLInputElement>) {
     setFormDetails({
@@ -28,86 +32,91 @@ export function Component() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    // Process form data
-    console.log(formDetails);
-
     for (const image of images) {
       const base64Image = image.split(",")[1];
 
       // Construct request body
       const requestBody = {
-        payload: {
-          image: {
-            imageBytes: base64Image,
+        instances: [
+          {
+            content: base64Image,
           },
-        },
-        params: {
-          scoreThreshold: "0.5",
+        ],
+        parameters: {
+          confidenceThreshold: 0.5,
+          maxPredictions: 5,
         },
       };
 
       try {
+        if (!projectId) {
+          throw new Error("Project ID is not defined");
+        }
         const response = await fetch(
-          `https://automl.googleapis.com/v1/projects/${projectId}/locations/${location}/models/${modelId}:predict`,
+          `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/endpoints/${modelId}:predict`,
           {
             method: "POST",
             headers: {
               Authorization: `Bearer ${AccessToken}`,
               "Content-Type": "application/json",
-              "x-goog-user-project": projectId,
             },
             body: JSON.stringify(requestBody),
           }
         );
 
-        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
 
-        data.payload?.forEach((annotationPayload: any) => {
-          console.log(`Predicted class name: ${annotationPayload.displayName}`);
-          console.log(
-            `Predicted class score: ${annotationPayload.classification?.score}`
-          );
-        });
+        const responseData = await response.json();
+
+        console.log(responseData);
+        responseData.payload?.forEach(
+          (annotationPayload: AnnotationPayload) => {
+            console.log(
+              `Predicted class name: ${annotationPayload.displayName}`
+            );
+            console.log(
+              `Predicted class score: ${annotationPayload.classification?.score}`
+            );
+          }
+        );
       } catch (error) {
         console.error(error);
       }
     }
   }
-
   // Set your project ID, location, and model ID
-
   function handleImageUpload(event: React.ChangeEvent<HTMLInputElement>) {
-    if (event.target.files) {
-      const files = Array.from(event.target.files);
-      Promise.all(
-        files.map((file) => {
-          return new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              const base64String = reader.result as string;
-              resolve(base64String);
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
-        })
-      )
-        .then((base64Strings: string[]) => {
-          setImages(base64Strings);
-        })
-        .catch((error) => console.error(error));
+    try {
+      if (event.target.files) {
+        const files = Array.from(event.target.files);
+        Promise.all(
+          files.map((file) => {
+            return new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const base64String = reader.result as string;
+                resolve(base64String);
+              };
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            });
+          })
+        )
+          .then((base64Strings: string[]) => {
+            setImages(base64Strings);
+          })
+          .catch((error) => console.error(error));
+      }
+    } catch (error) {
+      console.error(error);
     }
   }
-
   function handleRemoveImage(index: number) {
     setImages(images.filter((_, i) => i !== index));
   }
-  useEffect(() => {
-    console.log(images);
-  }, [images]);
-  useEffect(() => {
-    console.log("form details", formDetails);
-  }, [formDetails]);
+
   return (
     <main className="flex flex-col items-center justify-center h-full py-8 bg-gray-50 dark:bg-gray-900">
       <div className="flex flex-row justify-between items-center max-w-2xl py-2 mx-4 space-x-9">
