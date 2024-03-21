@@ -22,7 +22,8 @@ export function Component() {
   const AccessToken = import.meta.env.VITE_AccessToken;
   const projectId = import.meta.env.VITE_projectId;
   const modelId = import.meta.env.VITE_modelId;
-
+  console.log(AccessToken, projectId, modelId);
+  console.log(images);
   function handleInputChange(event: React.ChangeEvent<HTMLInputElement>) {
     setFormDetails({
       ...formDetails,
@@ -47,6 +48,7 @@ export function Component() {
           maxPredictions: 5,
         },
       };
+      console.log(requestBody);
 
       try {
         if (!projectId) {
